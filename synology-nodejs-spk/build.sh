@@ -16,18 +16,30 @@
 #                       fetching it again -- handy for offline / repeat builds.
 #                       Its SHA256 is still checked against the published list.
 #         MAINTAINER / DISTRIBUTOR / ... to override the Package Center metadata
-# Output: out/nodejs_x64-dsm6_<NODE_VERSION>-<SPK_REV>.spk
+# Output: out/Node.js_v12_x64-dsm6_<NODE_VERSION>-<SPK_REV>.spk
+#
+# Package id note:
+#   The package id is intentionally "Node.js_v12" -- the *exact* id used by the
+#   official Synology "Node.js v12" package (verified against the archived
+#   official INFO: package="Node.js_v12", arch="x86_64").  Reusing that id lets
+#   this SPK overwrite / upgrade an already-installed official Node.js v12
+#   package instead of installing side by side.  Because our version
+#   (${NODE_VERSION}-...) sorts higher than 12.22.12-0024, Package Center treats
+#   it as a normal upgrade.
 # ---------------------------------------------------------------------------
 set -eu
 
 NODE_VERSION="${NODE_VERSION:-24.21.0}"
 SPK_REV="${SPK_REV:-0001}"
-PKG_NAME="nodejs"
+PKG_NAME="Node.js_v12"
 PKG_DISPLAY_NAME="Node.js"
 
-# DSM 6.2-era x86_64 platform codes (Synology dev-guide platform table).
-ARCH_LIST="apollolake avoton braswell broadwell broadwellnk bromolow cedarview denverton geminilake grantley purley v1000"
-OS_MIN_VER="6.2-23739"
+# Architecture code, matching the official Node.js_v12 SPK byte-for-byte so the
+# overwrite/upgrade path accepts it.  The Node.js runtime here is linux-x64.
+ARCH_LIST="x86_64"
+FIRMWARE="6.0-7321"
+OS_MIN_VER="6.0-7321"
+OS_MAX_VER="7.0-40000"
 
 MAINTAINER="${MAINTAINER:-Node.js SPK Build}"
 MAINTAINER_URL="${MAINTAINER_URL:-https://nodejs.org/}"
@@ -74,12 +86,19 @@ description="Node.js is an open-source, cross-platform JavaScript runtime enviro
 description_chs="Node.js 是一个开源、跨平台的 JavaScript 运行时环境。本套件提供 Node.js ${NODE_VERSION} LTS 运行时，并包含 npm、npx 与 corepack；针对 glibc 2.17 构建，可在系统 glibc 仅为 2.20 的 DSM 6.2.x 上直接运行（官方二进制要求 glibc 2.28，无法在此系统运行）。"
 description_cht="Node.js 是一個開放原始碼、跨平台的 JavaScript 執行環境。本套件提供 Node.js ${NODE_VERSION} LTS 執行環境，並內含 npm、npx 與 corepack；針對 glibc 2.17 建置，可在系統 glibc 僅為 2.20 的 DSM 6.2.x 上直接執行（官方二進位檔要求 glibc 2.28，無法在此系統執行）。"
 arch="${ARCH_LIST}"
+firmware="${FIRMWARE}"
 maintainer="${MAINTAINER}"
 maintainer_url="${MAINTAINER_URL}"
 distributor="${DISTRIBUTOR}"
 distributor_url="${DISTRIBUTOR_URL}"
 os_min_ver="${OS_MIN_VER}"
+os_max_ver="${OS_MAX_VER}"
 thirdparty="yes"
+startable="no"
+silent_install="yes"
+silent_upgrade="yes"
+silent_uninstall="yes"
+support_center="yes"
 helpurl="https://nodejs.org/"
 support_url="https://github.com/nodejs/node/issues"
 changelog="Node.js ${NODE_VERSION} LTS (glibc-217 build) packaged for DSM 6.2 x86_64."
