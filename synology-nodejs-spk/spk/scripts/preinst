@@ -1,0 +1,5 @@
+#!/bin/sh
+# Node.js SPK - pre-install.
+# Only non-destructive sanity checks are allowed here.
+echo "Installing Node.js runtime into ${SYNOPKG_PKGDEST:-/var/packages/nodejs/target}"
+exit 0

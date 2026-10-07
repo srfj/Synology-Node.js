@@ -1,0 +1,3 @@
+#!/bin/sh
+# Node.js SPK - pre-upgrade: only non-destructive checks are allowed.
+exit 0

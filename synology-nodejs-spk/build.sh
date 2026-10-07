@@ -1,0 +1,113 @@
+#!/bin/sh
+# ---------------------------------------------------------------------------
+# Build a Synology SPK package for Node.js targeting DSM 6.2 (x86_64).
+#
+# Why the "glibc-217" build?
+#   Official Node.js binaries are linked against glibc >= 2.28, while DSM 6.2.3
+#   ships glibc 2.20.  The unofficial-builds "glibc-217" flavour is compiled
+#   against glibc 2.17 and therefore runs on DSM 6.2.x.  V8, libuv, npm, npx
+#   and corepack are identical to an upstream release; only the glibc the
+#   toolchain linked against differs.
+#
+# Usage:  sh build.sh
+# Env:    NODE_VERSION  (default 24.21.0)
+#         SPK_REV       (default 0001)
+#         NODE_TARBALL  (optional) reuse an already downloaded .tar.gz instead of
+#                       fetching it again -- handy for offline / repeat builds.
+#                       Its SHA256 is still checked against the published list.
+#         MAINTAINER / DISTRIBUTOR / ... to override the Package Center metadata
+# Output: out/nodejs_x64-dsm6_<NODE_VERSION>-<SPK_REV>.spk
+# ---------------------------------------------------------------------------
+set -eu
+
+NODE_VERSION="${NODE_VERSION:-24.21.0}"
+SPK_REV="${SPK_REV:-0001}"
+PKG_NAME="nodejs"
+PKG_DISPLAY_NAME="Node.js"
+
+# DSM 6.2-era x86_64 platform codes (Synology dev-guide platform table).
+ARCH_LIST="apollolake avoton braswell broadwell broadwellnk bromolow cedarview denverton geminilake grantley purley v1000"
+OS_MIN_VER="6.2-23739"
+
+MAINTAINER="${MAINTAINER:-Node.js SPK Build}"
+MAINTAINER_URL="${MAINTAINER_URL:-https://nodejs.org/}"
+DISTRIBUTOR="${DISTRIBUTOR:-Node.js SPK Build}"
+DISTRIBUTOR_URL="${DISTRIBUTOR_URL:-https://nodejs.org/}"
+
+DIST_NAME="node-v${NODE_VERSION}-linux-x64-glibc-217"
+BASE_URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}"
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+WORK="${ROOT}/.work"
+OUT="${ROOT}/out"
+STAGING="${WORK}/payload"
+TARBALL="${WORK}/${DIST_NAME}.tar.gz"
+
+rm -rf "${WORK}"
+mkdir -p "${WORK}" "${OUT}" "${STAGING}"
+
+echo "==> [1/6] Obtaining ${DIST_NAME}.tar.gz"
+if [ -n "${NODE_TARBALL:-}" ]; then
+    echo "    reusing ${NODE_TARBALL}"
+    cp "${NODE_TARBALL}" "${TARBALL}"
+else
+    curl -fsSL -o "${TARBALL}" "${BASE_URL}/${DIST_NAME}.tar.gz"
+fi
+curl -fsSL -o "${WORK}/SHASUMS256.txt" "${BASE_URL}/SHASUMS256.txt"
+
+echo "==> [2/6] Verifying SHA256"
+( cd "${WORK}" && grep " ${DIST_NAME}.tar.gz\$" SHASUMS256.txt | sha256sum -c - )
+
+echo "==> [3/6] Extracting runtime into staging area"
+tar -xzf "${TARBALL}" -C "${STAGING}" --strip-components=1
+
+echo "==> [4/6] Building package.tgz"
+( cd "${STAGING}" && find . -mindepth 1 -maxdepth 1 | tar cf - --files-from=- | gzip -n > "${WORK}/package.tgz" )
+
+echo "==> [5/6] Generating INFO"
+MD5="$(md5sum "${WORK}/package.tgz" | cut -d' ' -f1)"
+cat > "${WORK}/INFO" <<EOF
+package="${PKG_NAME}"
+version="${NODE_VERSION}-${SPK_REV}"
+displayname="${PKG_DISPLAY_NAME}"
+description="Node.js is an open-source, cross-platform JavaScript runtime environment. This package provides the Node.js ${NODE_VERSION} LTS runtime together with npm, npx and corepack. It is built against glibc 2.17 so it runs on DSM 6.2.x, where the system glibc (2.20) is too old for the official binaries (which require glibc 2.28)."
+description_chs="Node.js 是一个开源、跨平台的 JavaScript 运行时环境。本套件提供 Node.js ${NODE_VERSION} LTS 运行时，并包含 npm、npx 与 corepack；针对 glibc 2.17 构建，可在系统 glibc 仅为 2.20 的 DSM 6.2.x 上直接运行（官方二进制要求 glibc 2.28，无法在此系统运行）。"
+description_cht="Node.js 是一個開放原始碼、跨平台的 JavaScript 執行環境。本套件提供 Node.js ${NODE_VERSION} LTS 執行環境，並內含 npm、npx 與 corepack；針對 glibc 2.17 建置，可在系統 glibc 僅為 2.20 的 DSM 6.2.x 上直接執行（官方二進位檔要求 glibc 2.28，無法在此系統執行）。"
+arch="${ARCH_LIST}"
+maintainer="${MAINTAINER}"
+maintainer_url="${MAINTAINER_URL}"
+distributor="${DISTRIBUTOR}"
+distributor_url="${DISTRIBUTOR_URL}"
+os_min_ver="${OS_MIN_VER}"
+thirdparty="yes"
+helpurl="https://nodejs.org/"
+support_url="https://github.com/nodejs/node/issues"
+changelog="Node.js ${NODE_VERSION} LTS (glibc-217 build) packaged for DSM 6.2 x86_64."
+ctl_stop="no"
+dsmappname="org.nodejs.spk.nodejs"
+support_conf_folder="yes"
+checksum="${MD5}"
+EOF
+
+echo "==> [6/6] Generating icons and assembling SPK"
+python3 "${ROOT}/mk-icon.py" "${WORK}/PACKAGE_ICON.PNG" 72
+python3 "${ROOT}/mk-icon.py" "${WORK}/PACKAGE_ICON_256.PNG" 256
+
+SPK_STAGE="${WORK}/spk"
+mkdir -p "${SPK_STAGE}"
+cp "${WORK}/INFO" "${SPK_STAGE}/INFO"
+cp "${WORK}/package.tgz" "${SPK_STAGE}/package.tgz"
+cp "${WORK}/PACKAGE_ICON.PNG" "${SPK_STAGE}/PACKAGE_ICON.PNG"
+cp "${WORK}/PACKAGE_ICON_256.PNG" "${SPK_STAGE}/PACKAGE_ICON_256.PNG"
+cp -R "${ROOT}/spk/scripts" "${SPK_STAGE}/scripts"
+cp -R "${ROOT}/spk/conf" "${SPK_STAGE}/conf"
+chmod 755 "${SPK_STAGE}"/scripts/*
+chmod 644 "${SPK_STAGE}/INFO" "${SPK_STAGE}/conf/privilege"
+
+SPK_FILE="${OUT}/${PKG_NAME}_x64-dsm6_${NODE_VERSION}-${SPK_REV}.spk"
+rm -f "${SPK_FILE}"
+( cd "${SPK_STAGE}" && tar cpf "${SPK_FILE}" package.tgz INFO scripts conf PACKAGE_ICON.PNG PACKAGE_ICON_256.PNG )
+
+echo
+echo "Built: ${SPK_FILE}"
+ls -lh "${SPK_FILE}"
