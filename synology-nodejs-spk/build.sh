@@ -70,8 +70,28 @@ curl -fsSL -o "${WORK}/SHASUMS256.txt" "${BASE_URL}/SHASUMS256.txt"
 echo "==> [2/6] Verifying SHA256"
 ( cd "${WORK}" && grep " ${DIST_NAME}.tar.gz\$" SHASUMS256.txt | sha256sum -c - )
 
-echo "==> [3/6] Extracting runtime into staging area"
-tar -xzf "${TARBALL}" -C "${STAGING}" --strip-components=1
+echo "==> [3/6] Staging runtime in the official Synology layout"
+DIST_DIR="${WORK}/dist"
+mkdir -p "${DIST_DIR}"
+tar -xzf "${TARBALL}" -C "${DIST_DIR}" --strip-components=1
+
+# The upstream Node.js tarball puts the binary at bin/node.  The *official*
+# Synology Node.js_v12 package instead ships it as
+#     <target>/usr/local/bin/node
+# and Synology's own packages hardcode that exact path -- e.g. the
+# SynologyApplicationService upstart job for VapidSendServer runs
+#     exec /var/packages/Node.js_v12/target/usr/local/bin/node .../VapidSendServer.js
+# So we must reproduce the official layout, otherwise every dependent package
+# fails to start ("Failed to start service [Vapid Send Server]").
+mkdir -p "${STAGING}/usr/local/bin" "${STAGING}/usr/local/lib"
+cp -a "${DIST_DIR}/bin/node" "${STAGING}/usr/local/bin/node"
+cp -a "${DIST_DIR}/lib/node_modules" "${STAGING}/usr/local/lib/node_modules"
+[ -d "${DIST_DIR}/include" ] && cp -a "${DIST_DIR}/include" "${STAGING}/usr/local/include"
+[ -d "${DIST_DIR}/share" ] && cp -a "${DIST_DIR}/share" "${STAGING}/usr/local/share"
+ln -sfn ../lib/node_modules/npm/bin/npm-cli.js        "${STAGING}/usr/local/bin/npm"
+ln -sfn ../lib/node_modules/npm/bin/npx-cli.js        "${STAGING}/usr/local/bin/npx"
+ln -sfn ../lib/node_modules/corepack/dist/corepack.js "${STAGING}/usr/local/bin/corepack"
+cp -a "${DIST_DIR}/CHANGELOG.md" "${DIST_DIR}/LICENSE" "${DIST_DIR}/README.md" "${STAGING}/" 2>/dev/null || true
 
 echo "==> [4/6] Building package.tgz"
 ( cd "${STAGING}" && find . -mindepth 1 -maxdepth 1 | tar cf - --files-from=- | gzip -n > "${WORK}/package.tgz" )
@@ -120,6 +140,8 @@ cp "${WORK}/PACKAGE_ICON.PNG" "${SPK_STAGE}/PACKAGE_ICON.PNG"
 cp "${WORK}/PACKAGE_ICON_256.PNG" "${SPK_STAGE}/PACKAGE_ICON_256.PNG"
 cp -R "${ROOT}/spk/scripts" "${SPK_STAGE}/scripts"
 cp -R "${ROOT}/spk/conf" "${SPK_STAGE}/conf"
+# Inject the concrete version into the shared script helpers.
+sed -i "s/@@NODE_VERSION@@/${NODE_VERSION}/g" "${SPK_STAGE}/scripts/common"
 chmod 755 "${SPK_STAGE}"/scripts/*
 chmod 644 "${SPK_STAGE}/INFO" "${SPK_STAGE}/conf/privilege"
 

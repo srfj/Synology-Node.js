@@ -1,19 +1,14 @@
 #!/bin/sh
-# Node.js SPK - post-install: expose the runtime on PATH.
-#
-# /usr/local/bin is part of the default DSM PATH, so linking the four
-# entry points there makes `node`, `npm`, `npx` and `corepack` usable
-# from any SSH/telnet shell without extra configuration.
-PKG_DEST="${SYNOPKG_PKGDEST:-/var/packages/nodejs/target}"
-LINK_DIR="/usr/local/bin"
+# Node.js SPK - post-install: expose the runtime on PATH and into the layout
+# that Synology's dependent packages expect.
+. "$(dirname "$0")/common"
 
-mkdir -p "${LINK_DIR}"
-for tool in node npm npx corepack; do
-    if [ -e "${PKG_DEST}/bin/${tool}" ]; then
-        ln -sfn "${PKG_DEST}/bin/${tool}" "${LINK_DIR}/${tool}"
-    fi
-done
+# The official package kept /usr/local/lib/node_modules as a symlink; drop it so
+# it cannot shadow anything.
+[ -L /usr/local/lib/node_modules ] && rm -f /usr/local/lib/node_modules
+
+DO_LINK
 
 # Sanity report into the installer log.
-"${PKG_DEST}/bin/node" --version 2>&1 || true
+"${PKG_DIR}/usr/local/bin/node" --version 2>&1 || true
 exit 0

@@ -1,0 +1,33 @@
+#!/bin/sh
+# Node.js SPK - status reporting.
+#
+# DSM's package manager calls this during "list"/dependency resolution; the
+# official package provides it too.  Without it DSM logs
+#   pkgtool.cpp:3195 unknown status: [Node.js_v12]
+# and can consider the package broken, which blocks dependent packages from
+# starting.  There is no long-running daemon here, so start/stop only (re)build
+# the symlinks.
+. "$(dirname "$0")/common"
+
+case $1 in
+	start)
+		GET_STATUS
+		if [ $? -ne 0 ]; then
+			DO_LINK
+		fi
+		exit 0
+		;;
+	stop)
+		exit 0
+		;;
+	status)
+		GET_STATUS
+		exit $?
+		;;
+	killall)
+		;;
+	log)
+		exit 0
+		;;
+esac
+exit 0

@@ -1,16 +1,7 @@
 #!/bin/sh
-# Node.js SPK - pre-uninstall: drop the PATH symlinks before the
-# package directory is removed, otherwise they would be left dangling.
-PKG_DEST="${SYNOPKG_PKGDEST:-/var/packages/nodejs/target}"
-LINK_DIR="/usr/local/bin"
+# Node.js SPK - pre-uninstall: drop the PATH symlinks before the package
+# directory is removed, otherwise they would be left dangling.
+. "$(dirname "$0")/common"
 
-for tool in node npm npx corepack; do
-    link="${LINK_DIR}/${tool}"
-    if [ -L "${link}" ]; then
-        target="$(readlink "${link}")"
-        case "${target}" in
-            "${PKG_DEST}"/bin/*) rm -f "${link}" ;;
-        esac
-    fi
-done
+DO_REMOVE
 exit 0

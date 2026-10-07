@@ -1,0 +1,54 @@
+#!/bin/sh
+# Shared helpers for the Node.js_v12 SPK.
+#
+# The package id is "Node.js_v12" -- the same id the official Synology package
+# uses -- so this SPK overwrites/upgrades an existing official install, and the
+# runtime is laid out exactly like the official package:
+#
+#     <target>/usr/local/bin/node
+#     <target>/usr/local/lib/node_modules/{npm,corepack}
+#
+# Several Synology packages hardcode that path, e.g. the upstart job behind
+# "Vapid Send Server" runs
+#     exec /var/packages/Node.js_v12/target/usr/local/bin/node .../VapidSendServer.js
+# so the binary MUST live under usr/local.
+
+NODE_JS_PKG="Node.js_v12"
+PKG_DIR="/var/packages/${NODE_JS_PKG}/target"
+NODE_VERSION="@@NODE_VERSION@@"
+LINK_DIR="/usr/local/bin"
+NPM_DIR="${PKG_DIR}/usr/local/lib/node_modules/npm"
+COREPACK_BIN="${PKG_DIR}/usr/local/lib/node_modules/corepack/dist/corepack.js"
+
+# Point the standard PATH entry points at the packaged runtime.
+DO_LINK()
+{
+	mkdir -p "${LINK_DIR}"
+	ln -sfn "${PKG_DIR}/usr/local/bin/node" "${LINK_DIR}/node"
+	ln -sfn "${NPM_DIR}/bin/npm-cli.js" "${LINK_DIR}/npm"
+	ln -sfn "${NPM_DIR}/bin/npx-cli.js" "${LINK_DIR}/npx"
+	if [ -e "${COREPACK_BIN}" ]; then
+		ln -sfn "${COREPACK_BIN}" "${LINK_DIR}/corepack"
+	fi
+}
+
+# Remove only the symlinks we own (never a real file someone else placed).
+DO_REMOVE()
+{
+	for tool in node npm npx corepack; do
+		link="${LINK_DIR}/${tool}"
+		if [ -L "${link}" ]; then
+			case "$(readlink "${link}")" in
+				"${PKG_DIR}"/usr/local/*) rm -f "${link}" ;;
+			esac
+		fi
+	done
+}
+
+# Mirrors the official package: healthy only when both the PATH link and the
+# packaged binary are executable.  150 is what the official package returns.
+GET_STATUS()
+{
+	[ -x "${LINK_DIR}/node" ] && [ -x "${PKG_DIR}/usr/local/bin/node" ] || return 150
+	return 0
+}

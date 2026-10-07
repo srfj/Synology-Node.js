@@ -1,3 +1,9 @@
 #!/bin/sh
-# Node.js SPK - post-uninstall: nothing left to clean up.
+# Node.js SPK - post-uninstall: drop the PATH symlinks we created.
+. "$(dirname "$0")/common"
+
+# During an upgrade the new package re-creates everything, so leave links alone.
+[ "$SYNOPKG_PKG_STATUS" = "UPGRADE" ] && exit 0
+
+DO_REMOVE
 exit 0

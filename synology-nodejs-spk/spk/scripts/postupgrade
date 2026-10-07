@@ -1,12 +1,8 @@
 #!/bin/sh
 # Node.js SPK - post-upgrade: re-point the PATH symlinks at the new version.
-PKG_DEST="${SYNOPKG_PKGDEST:-/var/packages/nodejs/target}"
-LINK_DIR="/usr/local/bin"
+# (DSM also runs postinst on upgrade; re-running DO_LINK here is idempotent and
+# guards the case where postinst was skipped.)
+. "$(dirname "$0")/common"
 
-mkdir -p "${LINK_DIR}"
-for tool in node npm npx corepack; do
-    if [ -e "${PKG_DEST}/bin/${tool}" ]; then
-        ln -sfn "${PKG_DEST}/bin/${tool}" "${LINK_DIR}/${tool}"
-    fi
-done
+DO_LINK
 exit 0
