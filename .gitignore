@@ -173,6 +173,10 @@ install_manifest.txt
 # === Rules for AI assistants ===
 CLAUDE.md
 
+# === Rules for the Synology SPK build ===
+# Built packages are published as GitHub Release assets, not committed to git.
+/synology-nodejs-spk/out/
+
 # === Global Rules ===
 # Keep last to avoid being excluded
 *.pyc
